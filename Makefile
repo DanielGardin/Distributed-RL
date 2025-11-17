@@ -6,9 +6,15 @@ RAYLIB_INCLUDE := -I$(RAYLIB_DIR)/include
 # so the final binary can find the shared library relative to its location.
 RAYLIB_LIB := $(RAYLIB_DIR)/lib/libraylib.so.550
 
-LDFLAGS := -lm $(RAYLIB_LIB) -Wl,-rpath,'$$ORIGIN/../$(RAYLIB_DIR)/lib'
+# BLAS linking: default to OpenBLAS. Override via environment, e.g.
+#    make BLAS_LIB="-lopenblas"
+BLAS_LIB ?= -lopenblas
+# Optional include path for cblas.h (set if your distro installs headers in a non-standard location)
+BLAS_INC ?=
 
-CFLAGS := $(CFLAGS) $(RAYLIB_INCLUDE)
+LDFLAGS := -lm $(RAYLIB_LIB) $(BLAS_LIB) -Wl,-rpath,'$$ORIGIN/../$(RAYLIB_DIR)/lib'
+
+CFLAGS := $(CFLAGS) $(RAYLIB_INCLUDE) $(BLAS_INC)
 
 SRCS := $(shell find src -type f -name '*.c')
 

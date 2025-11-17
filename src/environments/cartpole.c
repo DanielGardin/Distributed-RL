@@ -1,10 +1,10 @@
-#include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
 #include <math.h>
 
 #include "raylib.h"
 #include "environments/cartpole.h"
+#include "rng.h"
 
 #define X_THRESHOLD 2.4f
 #define THETA_THRESHOLD_RADIANS (12 * 2 * PI / 360)
@@ -25,16 +25,12 @@ const Color POLE_COLOR = (Color){140, 170, 200, 255};
 const Color CART_COLOR = (Color){180, 140, 140, 255};
 const Color TEXT_COLOR = (Color){225, 230, 235, 255};
 
-float random_uniform(float low, float high) {
-    return ((float)rand() / (float)RAND_MAX) * (high-low) + low;
-};
-
 void cartpole_reset(CartpoleState *state, float *obs_buf) {
     state->step_count=0;
-    state->x = random_uniform(-0.05f, 0.05f);
-    state->x_dot=random_uniform(-0.05f, 0.05f);
-    state->theta=random_uniform(-0.05f, 0.05f);
-    state->theta_dot=random_uniform(-0.05f, 0.05f);
+    state->x = rand_uniform(-0.05f, 0.05f);
+    state->x_dot=rand_uniform(-0.05f, 0.05f);
+    state->theta=rand_uniform(-0.05f, 0.05f);
+    state->theta_dot=rand_uniform(-0.05f, 0.05f);
 
     obs_buf[0] = state->x;
     obs_buf[1] = state->x_dot;
@@ -44,7 +40,7 @@ void cartpole_reset(CartpoleState *state, float *obs_buf) {
 
 void cartpole_step(CartpoleState *state, float *action, float *obs_buf, float *reward_buf, bool *done_buf) {
     float force = state->continuous ? *(action) * state->force_magnitude
-                                  : (*(action) ? state->force_magnitude: -state->force_magnitude);
+                                  : (*(action) > 0.5f ? state->force_magnitude: -state->force_magnitude);
 
     float costheta = cosf(state->theta);
     float sintheta = sinf(state->theta);
