@@ -4,77 +4,99 @@
 
 #include "raylib.h"
 
+#include "algorithms/reinforce.h"
+#include "algorithms/common.h"
 #include "environments/cartpole.h"
-#include "nn.h"
+#include "nn/mlp.h"
+#include "nn/optimizers.h"
+#include "nn/debug.h"
 #include "rng.h"
-
 
 #define WIDTH 600
 #define HEIGHT 200
 
-int main() {
-    InitWindow(WIDTH, HEIGHT, "puffer Cartpole");
-    SetTargetFPS(20);
+void render_episode(Env *env, Policy *policy);
 
+int main() {
     rng_seed(1);
 
     Env env = make_cartpole_env(1.0f, true);
 
-    int input_size[2] = {4, 32};
-    int output_size = 1;
-    Activation activations[2] = {relu, logsigmoid};
+    int input_size[2] = {env.obs_size, 1};
+    int output_size = env.act_size;
+    Activation activations[2] = {relu, identity};
 
-    MLP policy = create_mlp(
+    MLP policynet = create_mlp(
         input_size,
         output_size,
         2,
         activations
     );
+    
+    for (int l=0; l<policynet.num_layers; l++)
+    kaiming_init(&policynet.layers[l]);
+    
+    Policy policy = create_binary_policy(&policynet);
+    
+    for (int n_grad_steps = 0; n_grad_steps < 1000; n_grad_steps++) {
+        discrete_reinforce_step(&env, &policy, 1, 100, 0.99);
+        gd_step(&policynet, 1e-4);
+        mlp_zero_grad(&policynet);
+    }
 
-    for (int l=0; l<policy.num_layers; l++)
-        kaiming_init(&policy.layers[l]);
+    print_mlp(&policynet);    
+    // save_mlp_weights(&policy, "weights.bin");
 
-    // for (int l=0; l<policy.num_layers; l++) {
-    //     LinearLayer *layer = &policy.layers[l];
+    render_episode(&env, &policy);
 
-    //     printf("Layer %d (Weights) %d x %d\n", l, layer->input_size, layer->output_size);
-    //     float *row = layer->weights;
-    //     for (int i=0; i<layer->input_size; i++) {
+    free_mlp(&policynet);
+    env_destroy(&env);
 
-    //         for (int j=0; j<layer->output_size; j++) {
-    //             printf("%.3f ", row[j]);
-    //         };
-    //         printf("\n");
-    //         row += layer->output_size;
-    //     };
-    // };
+    return 0;
+}
 
-    float *obs = malloc(env.obs_size * sizeof(float));
-    float log_prob, action;
+void print_array(float *array, int size) {
+    fprintf(stderr, "{ %.3f", array[0]);
+    for (int i = 1; i<size; i++)
+        fprintf(stderr, ", %.3f", array[i]);
+
+    fprintf(stderr, " }");
+}
+
+void render_episode(Env *env, Policy *policy) {
+    InitWindow(WIDTH, HEIGHT, "puffer Cartpole");
+    SetTargetFPS(20);
+
+    float *obs = malloc(env->obs_size * sizeof(float));
+    float *act = malloc(env->act_size * sizeof(float));
+
     float reward;
     bool done = false;
-    env_reset(&env, obs);
-    while (!done && !WindowShouldClose()) {
-        env_render(&env);
 
-        fprintf(
-            stderr, "INFO: Observation {%f, %f, %f, %f}\n",
-            obs[0], obs[1], obs[2], obs[3]
-        );
+    env_reset(env, obs);
 
-        mlp_forward(&policy, obs, 1, &log_prob);
-        action = expf(log_prob);
+    int step_count = 0;
+    for (; !done && !WindowShouldClose(); step_count++) {
+        env_render(env);
 
-        env_step(&env, &action, obs, &reward, &done);
+        fprintf(stderr, "INFO: Observation ");
+        print_array(obs, env->obs_size);
+        fprintf(stderr, "\n");
 
-        fprintf(stderr, "INFO: Action      {%f}\n", action);
-        fprintf(stderr, "INFO: Reward       %d\n", (int)reward);
+        policy_sample_action(policy, obs, 1, act, NULL);
+
+        env_step(env, act, obs, &reward, &done);
+
+        fprintf(stderr, "INFO: Action      ");
+        print_array(act, env->act_size);
+        fprintf(stderr, "\n");
+
+        fprintf(stderr, "INFO: Reward        %.3f\n", reward);
     };
     CloseWindow();
 
-    fprintf(stderr, "Finished simulation at step %d\n", ((CartpoleState*)env.ptr)->step_count);
-    env_destroy(&env);
-    free(obs);
+    fprintf(stderr, "INFO: Finished simulation at step %d\n", step_count);
 
-    return 0;
-};
+    free(obs);
+    free(act);
+}

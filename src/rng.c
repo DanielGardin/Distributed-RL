@@ -9,7 +9,7 @@ void rng_seed(unsigned int s) {
 
 float rand_uniform(float low, float high) {
     return ((float)rand() / (float)RAND_MAX) * (high - low) + low;
-};
+}
 
 float rand_normal(float mean, float std) {
     float u1 = (float)rand() / (float)RAND_MAX;

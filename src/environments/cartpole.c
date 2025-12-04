@@ -1,4 +1,3 @@
-#include <string.h>
 #include <stdbool.h>
 #include <math.h>
 
@@ -7,7 +6,7 @@
 #include "rng.h"
 
 #define X_THRESHOLD 2.4f
-#define THETA_THRESHOLD_RADIANS (12 * 2 * PI / 360)
+#define THETA_THRESHOLD_RADIANS (12 * 2 * M_PI / 360)
 #define CART_MASS 1.0f
 #define POLE_MASS 0.1f
 #define TOTAL_MASS  (CART_MASS+POLE_MASS)
@@ -38,7 +37,7 @@ void cartpole_reset(CartpoleState *state, float *obs_buf) {
     obs_buf[3] = state->theta_dot;
 };
 
-void cartpole_step(CartpoleState *state, float *action, float *obs_buf, float *reward_buf, bool *done_buf) {
+void cartpole_step(CartpoleState *state, const float *action, float *obs_buf, float *reward_buf, bool *done_buf) {
     float force = state->continuous ? *(action) * state->force_magnitude
                                   : (*(action) > 0.5f ? state->force_magnitude: -state->force_magnitude);
 
@@ -53,7 +52,7 @@ void cartpole_step(CartpoleState *state, float *action, float *obs_buf, float *r
             POLE_LENGTH
             * (4.0f / 3.0f - POLE_MASS * costheta * costheta / TOTAL_MASS)
         );
-    
+
     float xacc = tmp - POLE_LENGTH * POLE_MASS * thetaacc * costheta / TOTAL_MASS;
 
     // Semi-implicit Euler
@@ -74,11 +73,11 @@ void cartpole_step(CartpoleState *state, float *action, float *obs_buf, float *r
         state->theta < -THETA_THRESHOLD_RADIANS || state->theta > THETA_THRESHOLD_RADIANS
     );
     *reward_buf = *done_buf ? 0.0f : 1.0f;
-};
+}
 
 void cartpole_destroy(CartpoleState *state) {
     free(state);
-};
+}
 
 void cartpole_render(CartpoleState *state) {
     BeginDrawing();
@@ -112,9 +111,10 @@ Env make_cartpole_env(float force_magnitude, bool continuous) {
         .ptr = state,
         .obs_size = 4,
         .act_size = 1,
+        .act_space = 2,
         .reset = (void (*)(void*, float*))cartpole_reset,
-        .step = (void (*)(void*, float*, float*, float*, bool*))cartpole_step,
+        .step = (void (*)(void*, const float*, float*, float*, bool*))cartpole_step,
         .destroy = (void (*)(void*))cartpole_destroy,
         .render = (void (*)(void*))cartpole_render
     };
-};
+}

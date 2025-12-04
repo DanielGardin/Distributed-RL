@@ -21,3 +21,4 @@ extern Activation relu;
 extern Activation sigmoid;
 extern Activation softplus;
 extern Activation logsigmoid;
+extern Activation identity;

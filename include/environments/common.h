@@ -7,28 +7,36 @@
 
 typedef struct Env {
     void *ptr;
-    size_t obs_size;
-    size_t act_size;
-    void (*reset)(void*, float*);
-    void (*step)(void*, float*, float*, float*, bool*);
-    void (*destroy)(void*);
-    void (*render)(void*);
+    int obs_size;
+    int act_size;
+    int act_space;
+    void (*reset)(void* env, float* obs_buf);
+    void (*step)(void* env, const float* action, float* obs_buf, float* reward_buf, bool* done_buf);
+    void (*destroy)(void* env);
+    void (*render)(void* env);
 } Env;
 
-ENV_INLINE void env_reset(Env *e, float*obs_buf) {
-    return e->reset(e->ptr, obs_buf);
+ENV_INLINE void env_reset(Env *env, float*obs_buf) {
+    return env->reset(env->ptr, obs_buf);
 };
 
 ENV_INLINE void env_step(
-    Env *e, float *action, float *obs_buf, float *reward_buf, bool *done_buf
+    Env *env, const float *action, float *obs_buf, float *reward_buf, bool *done_buf
 ) {
-    e->step(e->ptr, action, obs_buf, reward_buf, done_buf);
+    if (obs_buf) {
+        env->step(env->ptr, action, obs_buf, reward_buf, done_buf);
+        return;
+    }
+
+    obs_buf = malloc(env->obs_size * sizeof(float));
+    env->step(env->ptr, action, obs_buf, reward_buf, done_buf);
+    free(obs_buf);
 };
 
-ENV_INLINE void env_destroy(Env *e) {
-    e->destroy(e->ptr);
+ENV_INLINE void env_destroy(Env *env) {
+    env->destroy(env->ptr);
 };
 
-ENV_INLINE void env_render(Env *e) {
-    e->render(e->ptr);
+ENV_INLINE void env_render(Env *env) {
+    env->render(env->ptr);
 };
