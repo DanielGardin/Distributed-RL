@@ -5,6 +5,8 @@
 typedef struct MLP {
     LinearLayer *layers;
     int num_layers;
+    int input_size;
+    int output_size;
 } MLP;
 
 MLP create_mlp(

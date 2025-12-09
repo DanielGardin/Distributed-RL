@@ -1,12 +1,23 @@
 #pragma once
 
-#include "algorithms/common.h"
-#include "environments/common.h"
-#include "nn/mlp.h"
-#include "rng.h"
+#include "policy.h"
 
-// Calculate policy gradient
-void discrete_reinforce_step(
+typedef enum {
+    NoBaseline,
+    MeanBaseline
+} Baseline;
+
+
+void binary_policy_gradient(
+    Env *env,
+    Policy *policy,
+    int n_episodes,
+    int max_steps_per_episode,
+    float gamma,
+    Baseline baseline
+);
+
+void discrete_policy_gradient(
     Env *env,
     Policy *policy,
     int n_episodes,
