@@ -23,14 +23,7 @@ ENV_INLINE void env_reset(Env *env, float*obs_buf) {
 ENV_INLINE void env_step(
     Env *env, const float *action, float *obs_buf, float *reward_buf, bool *done_buf
 ) {
-    if (obs_buf) {
-        env->step(env->ptr, action, obs_buf, reward_buf, done_buf);
-        return;
-    }
-
-    obs_buf = malloc(env->obs_size * sizeof(float));
     env->step(env->ptr, action, obs_buf, reward_buf, done_buf);
-    free(obs_buf);
 };
 
 ENV_INLINE void env_destroy(Env *env) {

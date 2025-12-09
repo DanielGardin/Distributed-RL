@@ -3,35 +3,8 @@
 #include <stdio.h>
 #include <math.h>
 
-#include "algorithms/common.h"
+#include "algorithms/policy.h"
 #include "rng.h"
-
-float log_sum_exp(float *array, int size) {
-    float max_value = array[0];
-    for (int i = 1; i < size; i++)
-        if (array[i] > max_value) max_value = array[i];
-
-    float sum_exp = 0.0f;
-    for (int i = 1; i < size; i++)
-        sum_exp += expf(array[i] - max_value);
-    
-    return max_value + logf(sum_exp);
-}
-
-void policy_sample_action(const Policy *policy, const float *obs, int batch_size, float *action, float *log_prob) {
-    policy->sample(policy->mlp, obs, batch_size, action, log_prob);
-}
-
-void policy_log_prob_from_logits(
-    const Policy *policy,
-    const float *logits,
-    const float *actions,
-    int batch_size,
-    float *log_prob,      // Can be NULL
-    float *grad_out       // Can be NULL
-) {
-    policy->log_prob(logits, actions, batch_size, log_prob, grad_out);
-}
 
 void policy_log_prob(
     const Policy *policy,
@@ -46,6 +19,18 @@ void policy_log_prob(
     mlp_forward(policy->mlp, obs, batch_size, logits, cache);
     policy_log_prob_from_logits(policy, logits, actions, batch_size, log_prob, grad_out);
     free(logits);
+}
+
+float log_sum_exp(float *array, int size) {
+    float max_value = array[0];
+    for (int i = 1; i < size; i++)
+        if (array[i] > max_value) max_value = array[i];
+
+    float sum_exp = 0.0f;
+    for (int i = 1; i < size; i++)
+        sum_exp += expf(array[i] - max_value);
+    
+    return max_value + logf(sum_exp);
 }
 
 /***************************
@@ -128,6 +113,12 @@ void binary_log_prob(
 }
 
 Policy create_binary_policy(MLP *mlp) {
+    if (mlp->output_size != 1)
+        fprintf(stderr,
+            "WARNING: Expected a single probability output from the neural network, got size %d.",
+            mlp->output_size
+        );
+
     return (Policy) {
         .mlp = mlp,
         .sample = sample_binary_action,
@@ -135,52 +126,5 @@ Policy create_binary_policy(MLP *mlp) {
     };
 }
 
-/***************************
- *    Algorithms' utils    *
- ***************************/
 
-int policy_rollout(
-    Env *env,
-    const Policy *policy,
-    int n_steps,
-    float *observations,
-    float *actions,
-    float *rewards,
-    bool *dones
-) {
-    float *log_probs = malloc(env->act_size * sizeof(float));
 
-    float *cur_obs = observations;
-    float *cur_act = actions;
-    float *cur_rew = rewards;
-    bool *cur_done = dones;
-
-    env_reset(env, cur_obs);
-
-    int step_count = 0;
-    for (; step_count < n_steps; step_count++) {
-        policy_sample_action(policy, cur_obs, 1, cur_act, NULL);
-
-        cur_obs += env->obs_size;
-        if (step_count == n_steps-1) cur_obs = NULL;
-
-        env_step(env, cur_act, cur_obs, cur_rew, cur_done);
-
-        if (*cur_done) break;
-        cur_act += env->act_size;
-        cur_rew += 1;
-        cur_done += 1;
-    };
-
-    free(log_probs);
-
-    return step_count;
-}
-
-void discounted_cumsum_inplace(float *r, int T, float gamma) {
-    float running = 0.0f;
-    for (int t = T - 1; t >= 0; --t) {
-        running = r[t] + gamma * running;
-        r[t] = running;
-    }
-}

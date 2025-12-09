@@ -28,7 +28,12 @@ MLP create_mlp(
         activations[num_layers-1]
     );
 
-    return (MLP){.layers=layers, .num_layers=num_layers};
+    return (MLP){
+        .layers=layers,
+        .num_layers=num_layers,
+        .input_size=input_sizes[0],
+        .output_size=output_size
+    };
 }
 
 void mlp_forward(const MLP* mlp, const float* input, int batch_size, float* out, MLPCache *cache) {
@@ -38,7 +43,7 @@ void mlp_forward(const MLP* mlp, const float* input, int batch_size, float* out,
     if (cache) memcpy(
         cache->layer_caches[0].layer_inputs,
         input,
-        batch_size * mlp->layers[0].input_size * sizeof(float)
+        batch_size * mlp->input_size * sizeof(float)
     );
 
     const LinearLayer *layer;

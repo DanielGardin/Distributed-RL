@@ -66,16 +66,20 @@ typedef struct Policy {
  * Preconditions:
  *  - All pointers provided are valid
  */
-void policy_sample_action(const Policy *policy, const float *obs, int batch_size, float *action, float *log_prob);
+static inline void policy_sample_action(const Policy *policy, const float *obs, int batch_size, float *action, float *log_prob) {
+    policy->sample(policy->mlp, obs, batch_size, action, log_prob);
+}
 
-void policy_log_prob_from_logits(
+static inline void policy_log_prob_from_logits(
     const Policy *policy,
     const float *logits,
     const float *actions,
     int batch_size,
     float *log_prob,      // Can be NULL
     float *grad_out       // Can be NULL
-);
+) {
+    policy->log_prob(logits, actions, batch_size, log_prob, grad_out);
+}
 
 void policy_log_prob(
     const Policy *policy,
@@ -112,57 +116,3 @@ Policy create_discrete_policy(MLP *mlp);
  *  - Initialized Policy (does not allocate or copy mlp)
  */
 Policy create_binary_policy(MLP *mlp);
-
-/**
- * Executes a rollout in the environment using the given policy.
- *
- * The arrays must be pre-allocated by the caller.
- *
- * Inputs:
- *  - env           : environment instance (mutated)
- *  - policy        : policy used for action selection
- *  - n_steps       : maximum number of environment steps
- *
- * Outputs (length = n_steps unless terminated early):
- *  - observations  : [t][obs_dim]
- *  - actions       : [t][act_dim] or scalar
- *  - rewards       : [t]
- *  - dones         : [t] = 1 if terminal at step t
- *
- * Returns:
- *  - Number of executed steps (≤ n_steps)
- *
- * Side effects:
- *  - Mutates environment state
- *
- * Thread-safety:
- *  - Not thread-safe (env is stateful)
- */
-int policy_rollout(
-    Env *env,
-    const Policy *policy,
-    int n_steps,
-    float *observations,
-    float *actions,
-    float *rewards,
-    bool *dones
-);
-
-/**
- * In-place discounted inverse cumulative sum.
- *
- * Definition:
- *   r[t] ← ∑_{k=0}^{T-t-1} γ^k r[t+k]
- *
- * Used to compute Monte-Carlo returns for vanilla REINFORCE.
- *
- * Inputs:
- *  - r     : array of length T (overwritten)
- *  - T     : number of timesteps
- *  - gamma : discount factor, 0 ≤ γ ≤ 1
- *
- * Preconditions:
- *  - r points to at least T floats
- *  - T > 0
- */
-void discounted_cumsum_inplace(float *r, int T, float gamma);
