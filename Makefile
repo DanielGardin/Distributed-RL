@@ -15,6 +15,7 @@ BLAS_INC ?=
 LDFLAGS := -lm $(RAYLIB_LIB) $(BLAS_LIB) -Wl,-rpath,'$$ORIGIN/../$(RAYLIB_DIR)/lib'
 
 CFLAGS := $(CFLAGS) $(RAYLIB_INCLUDE) $(BLAS_INC)
+CFLAGS += -Wno-unused
 
 SRCS := $(shell find src -type f -name '*.c')
 
@@ -22,7 +23,7 @@ OBJS := $(SRCS:.c=.o)
 
 TARGET := bin/cartpole_demo
 
-.PHONY: all clean
+.PHONY: all clean test
 
 all: $(TARGET)
 
@@ -33,5 +34,16 @@ $(TARGET): $(OBJS)
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
+# Test target: build and run unit tests in `test/`.
+# This compiles `test/test_mlp` and links it against the project's objects.
+test: test/test_mlp
+	@echo "Running tests..."
+	./test/test_mlp
+
+test/test_mlp: test/test_mlp.c $(OBJS)
+	# Exclude the program `main` object when linking tests to avoid multiple definition of main
+	$(CC) $(CFLAGS) -Iinclude/nn test/test_mlp.c $(filter-out src/main.o,$(OBJS)) -o test/test_mlp $(LDFLAGS)
+
 clean:
 	rm -f $(OBJS) $(TARGET)
+	rm -f test/test_mlp
