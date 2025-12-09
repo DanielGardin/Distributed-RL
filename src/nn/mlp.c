@@ -45,14 +45,11 @@ void mlp_forward(const MLP* mlp, const float* input, int batch_size, float* out,
     for (int l = 0; l < mlp->num_layers; l++) {
         layer = &mlp->layers[l];
 
-        if (l == mlp->num_layers - 1)
-            output = out;
-        else if (cache)
-            output = cache->layer_caches[l+1].layer_inputs;
-        else
-            output = malloc(batch_size * layer->output_size * sizeof(float));
+        if (l == mlp->num_layers - 1) output = out;
+        else if (cache) output = cache->layer_caches[l+1].layer_inputs;
+        else output = malloc(batch_size * layer->output_size * sizeof(float));
 
-        linear_forward(layer, current_input, batch_size, output, cache ? cache->layer_caches[l].pre_activations : NULL);
+        linear_forward(layer, current_input, batch_size, output, cache ? &cache->layer_caches[l] : NULL);
 
         if (l > 0 && cache == NULL)
             free((float *)current_input);
@@ -61,7 +58,7 @@ void mlp_forward(const MLP* mlp, const float* input, int batch_size, float* out,
     }
 }
 
-void mlp_backward(MLP *mlp, const MLPCache *cache, const float *out_grad, float  *input_gradient) {
+void mlp_backward(MLP *mlp, const MLPCache *cache, const float *out_grad, float *input_gradient) {
     int num_layers = mlp->num_layers;
     int batch_size = cache->batch_size;
 
@@ -78,9 +75,9 @@ void mlp_backward(MLP *mlp, const MLPCache *cache, const float *out_grad, float 
 
         linear_backward(layer, &cache->layer_caches[l], current_grad, next_grad);
 
-        if (l < num_layers - 1)
+        if (current_grad != out_grad)
             free((float *)current_grad);
-        
+
         current_grad = next_grad;
     }
 }

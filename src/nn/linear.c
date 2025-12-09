@@ -38,30 +38,32 @@ void kaiming_init(LinearLayer *linear) {
 };
 
 void linear_forward(
-    const LinearLayer* linear,
-    const float* input,
+    const LinearLayer *linear,
+    const float *input,
     int batch_size,
-    float* out,
-    float *pre_activation
+    float *out,
+    LinearCache *cache
 ) {
     int insize = linear->input_size;
     int outsize = linear->output_size;
 
+    // Z = X W^T
     cblas_sgemm(
-        CblasRowMajor, CblasNoTrans, CblasNoTrans,
+        CblasRowMajor, CblasNoTrans, CblasTrans,
         batch_size, outsize, insize,
         1.0f,
         input, insize,
-        linear->weights, outsize,
+        linear->weights, insize,
         0.0f,
         out, outsize
     );
 
-    if (pre_activation) {
+    // O = σ(Z)
+    if (cache) {
         for (int idx = 0; idx < batch_size * linear->output_size; ++idx) {
             const int j = idx % linear->output_size;
             float z = out[idx] + linear->biases[j];
-            pre_activation[idx] = z;
+            cache->pre_activations[idx] = z;
 
             out[idx] = linear->activation.fn(z);
         }
@@ -83,19 +85,20 @@ void linear_backward(
     int out_size = linear->output_size;
     int batch_size = cache->batch_size;
 
-    float *grad_pre = malloc(batch_size * out_size * sizeof(float));  // ∂f/∂z
-    for (int i = 0; i < batch_size * out_size; i++)
+    float *grad_pre = malloc(batch_size * out_size * sizeof(float));  // ∂f/∂z of size [batch_size, output_size]
+    for (int i = 0; i < batch_size * out_size; i++) {
         grad_pre[i] = out_grad[i] * linear->activation.dfn(cache->pre_activations[i]);
+    }
 
     // Weight gradient ∂f/∂W = (dz/dW)^T (∂f/∂z)
     cblas_sgemm(
         CblasRowMajor, CblasTrans, CblasNoTrans,
-        in_size, out_size, batch_size,
+        out_size, in_size, batch_size,
         1.0f,
-        cache->layer_inputs, in_size,
         grad_pre, out_size,
+        cache->layer_inputs, in_size,
         1.0f,
-        linear->weights_grad, out_size
+        linear->weights_grad, in_size
     );
 
     for (int b = 0; b < batch_size; b++) {
@@ -106,11 +109,11 @@ void linear_backward(
 
     if (in_grad) {
         cblas_sgemm(
-            CblasRowMajor, CblasNoTrans, CblasTrans,
+            CblasRowMajor, CblasNoTrans, CblasNoTrans,
             batch_size, in_size, out_size,
             1.0f,
             grad_pre, out_size,
-            linear->weights, out_size,
+            linear->weights, in_size,
             0.0f,
             in_grad, in_size
         );
@@ -120,8 +123,8 @@ void linear_backward(
 }
 
 void linear_zero_grad(LinearLayer *linear) {
-    memset(linear->weights_grad, 0.0f, linear->output_size * linear->input_size);
-    memset(linear->biases_grad, 0.0f, linear->output_size);
+    memset(linear->weights_grad, 0, linear->output_size * linear->input_size * sizeof(float));
+    memset(linear->biases_grad, 0, linear->output_size * sizeof(float));
 }
 
 

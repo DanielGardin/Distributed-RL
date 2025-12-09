@@ -28,8 +28,10 @@ float logsigmoid_dfn(float x) {
 
 float identity_fn(float x) {return x;}
 
+float constant_fn(float x) {return 1.0f;}
+
 Activation relu       = { relu_fn,       relu_dfn };
 Activation sigmoid    = { sigmoid_fn,    sigmoid_dfn };
 Activation softplus   = { softplus_fn,   softplus_dfn };
 Activation logsigmoid = { logsigmoid_fn, logsigmoid_dfn };
-Activation identity   = { identity_fn,   identity_fn};
+Activation identity   = { identity_fn,   constant_fn};

@@ -34,7 +34,7 @@ void linear_forward(
     const float *input,
     int batch_size,
     float *out,
-    float *pre_activation      // NULL when in inference mode
+    LinearCache *cache
 );
 
 void linear_backward(
