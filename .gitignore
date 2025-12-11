@@ -1,6 +1,8 @@
 # Prerequisites
 *.d
 
+build/
+
 # Object files
 *.o
 *.ko
@@ -27,6 +29,9 @@
 *.so
 *.so.*
 *.dylib
+
+#  Except the ones in external/ directory
+!external/**
 
 # Executables
 *.exe
