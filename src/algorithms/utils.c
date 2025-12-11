@@ -36,9 +36,11 @@ EpisodeStatistics policy_rollout(
 
     int step_count = 0;
     float cum_reward = 0.0f;
+    float entropy, total_entropy = 0.0f;
     bool done = false;
     for (; step_count < n_steps && !done; step_count++) {
-        policy_sample_action(policy, cur_obs, 1, cur_act, NULL);
+        policy_sample_action(policy, cur_obs, 1, cur_act, NULL, &entropy);
+        total_entropy += entropy;
 
         next_obs = (step_count + 1 < n_steps)
                     ? cur_obs + env->obs_size
@@ -60,7 +62,8 @@ EpisodeStatistics policy_rollout(
 
     return (EpisodeStatistics) {
         .episode_return = cum_reward,
-        .total_steps=step_count
+        .total_steps=step_count,
+        .mean_entropy=total_entropy/step_count
     };
 }
 

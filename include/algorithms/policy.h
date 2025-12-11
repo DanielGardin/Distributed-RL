@@ -38,7 +38,8 @@ typedef struct Policy {
         const float *obs,
         int batch_size,
         float *action,
-        float *log_prob
+        float *log_prob,
+        float *entropy
     );
 
     void (*log_prob) (
@@ -46,6 +47,13 @@ typedef struct Policy {
         const float *actions,
         int batch_size,
         float *log_prob,
+        float *grad_out
+    );
+
+    void (*entropy) (
+        const float *logits,
+        int batch_size,
+        float *entropy,
         float *grad_out
     );
 } Policy;
@@ -66,8 +74,15 @@ typedef struct Policy {
  * Preconditions:
  *  - All pointers provided are valid
  */
-static inline void policy_sample_action(const Policy *policy, const float *obs, int batch_size, float *action, float *log_prob) {
-    policy->sample(policy->mlp, obs, batch_size, action, log_prob);
+static inline void policy_sample_action(
+    const Policy *policy,
+    const float *obs,
+    int batch_size,
+    float *actions,
+    float *log_prob,
+    float *entropy
+) {
+    policy->sample(policy->mlp, obs, batch_size, actions, log_prob, entropy);
 }
 
 static inline void policy_log_prob_from_logits(
@@ -81,6 +96,16 @@ static inline void policy_log_prob_from_logits(
     policy->log_prob(logits, actions, batch_size, log_prob, grad_out);
 }
 
+static inline void policy_entropy_from_logits(
+    const Policy *policy,
+    const float *logits,
+    int batch_size,
+    float *entropy,      // Can be NULL
+    float *grad_out       // Can be NULL
+) {
+    policy->entropy(logits, batch_size, entropy, grad_out);
+}
+
 void policy_log_prob(
     const Policy *policy,
     const float *obs,
@@ -90,6 +115,27 @@ void policy_log_prob(
     float *grad_out,
     MLPCache *cache
 );
+
+static inline void policy_entropy(
+    const Policy *policy,
+    const float *obs,
+    int batch_size,
+    float *entropy,      // Can be NULL
+    float *grad_out       // Can be NULL
+);
+
+/**
+ * Creates a binary-action policy wrapper.
+ *
+ * The output distribution is Bernoulli (sigmoid on single output neuron).
+ *
+ * Arguments:
+ *  - mlp : network producing a single logit
+ *
+ * Returns:
+ *  - Initialized Policy (does not allocate or copy mlp)
+ */
+Policy create_binary_policy(MLP *mlp);
 
 /**
  * Creates a discrete-action policy wrapper.
@@ -104,15 +150,3 @@ void policy_log_prob(
  */
 Policy create_discrete_policy(MLP *mlp);
 
-/**
- * Creates a binary-action policy wrapper.
- *
- * The output distribution is Bernoulli (sigmoid on single output neuron).
- *
- * Arguments:
- *  - mlp : network producing a single logit
- *
- * Returns:
- *  - Initialized Policy (does not allocate or copy mlp)
- */
-Policy create_binary_policy(MLP *mlp);

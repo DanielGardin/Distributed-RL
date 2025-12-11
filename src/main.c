@@ -81,7 +81,7 @@ int main(int argc, char *argv[]) {
             
         // }
 
-        binary_policy_gradient(&env, &policy, config.episodes, config.max_steps, config.gamma, NoBaseline);
+        binary_policy_gradient(&env, &policy, config.episodes, config.max_steps, config.gamma, MeanBaseline);
         gd_step(&policynet, config.learning_rate);
         mlp_zero_grad(&policynet);
     }
@@ -117,7 +117,7 @@ void render_episode(Env *env, Policy *policy) {
         print_array(obs, env->obs_size);
         fprintf(stderr, "\n");
 
-        policy_sample_action(policy, obs, 1, act, NULL);
+        policy_sample_action(policy, obs, 1, act, NULL, NULL);
 
         env_step(env, act, obs, &reward, &done);
 

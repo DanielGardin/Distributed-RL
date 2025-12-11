@@ -5,6 +5,7 @@
 typedef struct EpisodeStatistics {
     float episode_return;
     int total_steps;
+    float mean_entropy;
 } EpisodeStatistics;
 
 

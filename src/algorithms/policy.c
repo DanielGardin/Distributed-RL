@@ -75,17 +75,6 @@ float log_sum_exp(float *array, int size) {
  *  Binary Policy methods  *
  ***************************/
 
-void sample_binary_action(const MLP *mlp, const float *obs, int batch_size, float *action, float *log_prob) {
-    mlp_forward(mlp, obs, batch_size, action, NULL);
-
-    for (int b = 0; b < batch_size; b++) {
-        float p_one = 1.0f / (1.0f + expf(-action[b]));
-        action[b] = (rand_uniform(0, 1) < p_one) ? 1.0f : 0.0f;
-
-        if (log_prob) log_prob[b] = action[b] ? logf(p_one) : logf(1.0f - p_one);
-    }
-}
-
 void binary_log_prob(
         const float *logits,
         const float *actions,
@@ -112,6 +101,43 @@ void binary_log_prob(
     }
 }
 
+void binary_entropy(
+    const float *logits,
+    int batch_size,
+    float *entropy,
+    float *grad_out
+) {
+    for (int b = 0; b < batch_size; b++) {
+        float z = logits[b];
+        float p = 1.0f / (1.0f + expf(-z));
+
+        if (entropy) entropy[b] = logf(1.0f + expf(-z)) + (1.0f - p) * z;
+
+        if (grad_out) grad_out[b] = -z * p * (1.0f - p);
+    }
+}
+
+void sample_binary_action(
+    const MLP *mlp,
+    const float *obs,
+    int batch_size,
+    float *actions,
+    float *log_prob,
+    float *entropy
+) {
+    float *logits = malloc(batch_size * sizeof(float));
+
+    mlp_forward(mlp, obs, batch_size, logits, NULL);
+
+    for (int b = 0; b < batch_size; b++) {
+        float p_one = 1.0f / (1.0f + expf(-logits[b]));
+        actions[b] = (rand_uniform(0, 1) < p_one) ? 1.0f : 0.0f;
+    }
+
+    if (log_prob) binary_log_prob(logits, actions, batch_size, log_prob, NULL);
+    if (entropy) binary_entropy(logits, batch_size, entropy, NULL);
+}
+
 Policy create_binary_policy(MLP *mlp) {
     if (mlp->output_size != 1)
         fprintf(stderr,
@@ -122,9 +148,7 @@ Policy create_binary_policy(MLP *mlp) {
     return (Policy) {
         .mlp = mlp,
         .sample = sample_binary_action,
-        .log_prob = binary_log_prob
+        .log_prob = binary_log_prob,
+        .entropy = binary_entropy
     };
 }
-
-
-
