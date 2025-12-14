@@ -134,6 +134,8 @@ void sample_binary_action(
 
     if (log_prob) binary_log_prob(logits, actions, batch_size, log_prob, NULL);
     if (entropy) binary_entropy(logits, batch_size, entropy, NULL);
+
+    free(logits);
 }
 
 Policy create_binary_policy(MLP *mlp) {

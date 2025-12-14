@@ -100,6 +100,7 @@ int main(int argc, char *argv[]) {
     
     if (config.render) render_episode(&env, &policy);
 
+    free_adam_state(&optimizer_state);
     free_mlp(&policynet);
     env_destroy(&env);
 
