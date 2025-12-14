@@ -7,8 +7,12 @@ typedef enum {
     MeanBaseline
 } Baseline;
 
+typedef struct {
+    float mean_return;
+    float mean_advantage;
+} TrainingStats;
 
-void binary_policy_gradient(
+TrainingStats binary_policy_gradient(
     Env *env,
     Policy *policy,
     int n_episodes,

@@ -141,7 +141,6 @@ int test_backward_correctness() {
     return 0;
 }
 
-
 int main() {
     int total_tests = 1;
     int failed_tests = 0;

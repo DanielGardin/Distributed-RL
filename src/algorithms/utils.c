@@ -11,7 +11,7 @@ void discounted_cumsum_inplace(float *r, bool *dones, int size, float gamma) {
         if (dones[t]) running = 0.0f;
 
         running = r[t] + gamma * running;
-        r[t] = running;
+        r[t] = running;   
     }
 }
 
@@ -54,8 +54,6 @@ EpisodeStatistics policy_rollout(
         cur_act += env->act_size;
         cur_rew += 1;
         cur_done += 1;
-
-        if (done) break;
     };
 
     free(last_obs_buffer);
@@ -65,14 +63,6 @@ EpisodeStatistics policy_rollout(
         .total_steps=step_count,
         .mean_entropy=total_entropy/step_count
     };
-}
-
-void print_array(float *array, int size) {
-    fprintf(stderr, "{ %.3f", array[0]);
-    for (int i = 1; i<size; i++)
-        fprintf(stderr, ", %.3f", array[i]);
-
-    fprintf(stderr, " }");
 }
 
 // EpisodeStatistics evaluate_policy(Env *env, const Policy *policy, int max_steps, int repeats) {

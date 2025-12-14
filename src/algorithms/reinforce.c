@@ -5,7 +5,16 @@
 #include "algorithms/utils.h"
 #include "algorithms/reinforce.h"
 
-void binary_policy_gradient(
+void _print_array(float *array, int size) {
+    printf("{ %.3f", array[0]);
+    for (int i = 1; i<size; i++)
+        printf(", %.3f", array[i]);
+
+    printf(" }");
+}
+
+
+TrainingStats binary_policy_gradient(
     Env *env,
     Policy *policy,
     int n_episodes,
@@ -36,7 +45,7 @@ void binary_policy_gradient(
         offset += stats.total_steps;
         mean_return += stats.episode_return;
     }
-
+    mean_return /= n_episodes;
     discounted_cumsum_inplace(rewards, dones, offset, gamma);
 
     MLPCache cache = create_mlp_cache(policy->mlp, offset);
@@ -49,8 +58,13 @@ void binary_policy_gradient(
     float baseline_value = 0.0f;
     if (baseline == MeanBaseline) baseline_value = mean_return;
 
-    for (int t = 0; t < offset; t++)
-        dlogp[t] *= -(rewards[t] - baseline_value);
+    float mean_advantage = 0.0f;
+    for (int t = 0; t < offset; t++) {
+        float advantage = rewards[t] - baseline_value;
+        mean_advantage += advantage;
+        dlogp[t] *= -advantage / offset;
+    }
+    mean_advantage /= offset;
 
     mlp_backward(policy->mlp, &cache, dlogp, NULL);
 
@@ -62,6 +76,11 @@ void binary_policy_gradient(
     free(actions);
     free(rewards);
     free(dones);
+
+    return (TrainingStats) {
+        .mean_return = mean_return,
+        .mean_advantage = mean_advantage
+    };
 }
 
 

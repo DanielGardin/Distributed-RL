@@ -1,4 +1,4 @@
-#include <stdbool.h>
+#include <stdlib.h>
 #include <math.h>
 
 #include "raylib.h"
@@ -18,7 +18,6 @@
 #define HEIGHT 200
 #define SCALE 100
 
-
 const Color BACKGROUND_COLOR = (Color){ 24, 32, 38, 255};
 const Color POLE_COLOR = (Color){140, 170, 200, 255};
 const Color CART_COLOR = (Color){180, 140, 140, 255};
@@ -35,7 +34,7 @@ void cartpole_reset(CartpoleState *state, float *obs_buf) {
     obs_buf[1] = state->x_dot;
     obs_buf[2] = state->theta;
     obs_buf[3] = state->theta_dot;
-};
+}
 
 void cartpole_step(CartpoleState *state, const float *action, float *obs_buf, float *reward_buf, bool *done_buf) {
     float force = state->continuous ? *(action) * state->force_magnitude
@@ -72,7 +71,7 @@ void cartpole_step(CartpoleState *state, const float *action, float *obs_buf, fl
         state->x < -X_THRESHOLD || state->x > X_THRESHOLD ||
         state->theta < -THETA_THRESHOLD_RADIANS || state->theta > THETA_THRESHOLD_RADIANS
     );
-    *reward_buf = *done_buf ? 0.0f : 1.0f;
+    *reward_buf = 1.0f;
 }
 
 void cartpole_destroy(CartpoleState *state) {
@@ -99,7 +98,7 @@ void cartpole_render(CartpoleState *state) {
     DrawText(TextFormat("Cart Position: %.2f", state->x), 10, 40, 20, TEXT_COLOR);
     DrawText(TextFormat("Pole Angle: %.2f", state->theta * 180.0f / PI), 10, 70, 20, TEXT_COLOR);
     EndDrawing();
-};
+}
 
 Env make_cartpole_env(float force_magnitude, bool continuous) {
     CartpoleState *state = malloc(sizeof(CartpoleState));
