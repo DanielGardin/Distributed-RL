@@ -22,6 +22,7 @@ typedef struct {
     float gamma;
     int grad_steps;
     float learning_rate;
+    bool render;
 } Config;
 
 // Default values
@@ -43,6 +44,7 @@ void print_usage(const char *prog_name) {
     fprintf(stderr, "  -y <float> Discount factor (gamma) (Default: %.2f)\n", DEFAULT_GAMMA);
     fprintf(stderr, "  -k <float> Number of gradient steps to perform (Default: %d)\n", DEFAULT_GRAD_STEPS);
     fprintf(stderr, "  -l <float> Learning rate (Default: %.0e)\n", DEFAULT_LEARNING_RATE);
+    fprintf(stderr, "  -r         Render episode using trained policy");
     fprintf(stderr, "  -h         Print this help message\n");
 }
 
@@ -58,7 +60,7 @@ void parse_arguments(int argc, char *argv[], Config *config);
 void render_episode(Env *env, Policy *policy);
 
 int main(int argc, char *argv[]) {
-    Config config;
+    Config config = {0};
     parse_arguments(argc, argv, &config);
 
     rng_seed(config.seed);
@@ -75,7 +77,6 @@ int main(int argc, char *argv[]) {
         2,
         activations
     );
-
     
     for (int l=0; l<policynet.num_layers; l++) kaiming_init(&policynet.layers[l]);
     AdamState optimizer_state = create_adam_state(&policynet);
@@ -97,7 +98,7 @@ int main(int argc, char *argv[]) {
 
     // save_mlp_weights(&policy, "weights.bin");
     
-    // render_episode(&env, &policy);
+    if (config.render) render_episode(&env, &policy);
 
     free_mlp(&policynet);
     env_destroy(&env);
@@ -156,7 +157,7 @@ void parse_arguments(int argc, char *argv[], Config *config) {
     config->learning_rate = DEFAULT_LEARNING_RATE;
 
     // Use "s:g:e:m:y:l:h" to specify options that take an argument
-    while ((opt = getopt(argc, argv, "s:g:n:e:m:y:k:l:h")) != -1) {
+    while ((opt = getopt(argc, argv, "s:g:n:e:m:y:k:rl:h")) != -1) {
         switch (opt) {
             case 's':
                 config->seed = atoi(optarg);
@@ -178,6 +179,9 @@ void parse_arguments(int argc, char *argv[], Config *config) {
                 break;
             case 'l':
                 config->learning_rate = atof(optarg);
+                break;
+            case 'r':
+                config->render = true;
                 break;
             case 'h':
                 print_usage(argv[0]);
