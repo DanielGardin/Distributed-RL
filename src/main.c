@@ -16,7 +16,6 @@
 
 typedef struct {
     int seed;
-    float gravity;
     int hidden_size;
     int episodes;
     int max_steps;
@@ -27,10 +26,9 @@ typedef struct {
 
 // Default values
 #define DEFAULT_SEED 1
-#define DEFAULT_GRAVITY 1.0f
 #define DEFAULT_HIDDENSIZE 16
 #define DEFAULT_EPISODES 1
-#define DEFAULT_MAX_STEPS 200
+#define DEFAULT_MAX_STEPS 500
 #define DEFAULT_GAMMA 0.99f
 #define DEFAULT_GRAD_STEPS 2500
 #define DEFAULT_LEARNING_RATE 1e-2f
@@ -39,7 +37,6 @@ void print_usage(const char *prog_name) {
     fprintf(stderr, "Usage: %s [options]\n", prog_name);
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "  -s <int>   RNG seed (Default: %d)\n", DEFAULT_SEED);
-    fprintf(stderr, "  -g <float> CartPole gravity (Default: %.2f)\n", DEFAULT_GRAVITY);
     fprintf(stderr, "  -n <float> Neural network's hidden size (Default: %d)\n", DEFAULT_HIDDENSIZE);
     fprintf(stderr, "  -e <int>   Episodes per gradient step (batch size) (Default: %d)\n", DEFAULT_EPISODES);
     fprintf(stderr, "  -m <int>   Max steps per episode (Default: %d)\n", DEFAULT_MAX_STEPS);
@@ -47,6 +44,14 @@ void print_usage(const char *prog_name) {
     fprintf(stderr, "  -k <float> Number of gradient steps to perform (Default: %d)\n", DEFAULT_GRAD_STEPS);
     fprintf(stderr, "  -l <float> Learning rate (Default: %.0e)\n", DEFAULT_LEARNING_RATE);
     fprintf(stderr, "  -h         Print this help message\n");
+}
+
+void print_array(float *array, int size) {
+    fprintf(stderr, "{ %.3f", array[0]);
+    for (int i = 1; i<size; i++)
+        fprintf(stderr, ", %.3f", array[i]);
+
+    fprintf(stderr, " }");
 }
 
 void parse_arguments(int argc, char *argv[], Config *config);
@@ -58,7 +63,7 @@ int main(int argc, char *argv[]) {
 
     rng_seed(config.seed);
 
-    Env env = make_cartpole_env(config.gravity, false);
+    Env env = make_cartpole_env(10.0f, false);
 
     Activation activations[2] = {relu, identity};
     int input_size[2] = {env.obs_size, config.hidden_size};
@@ -71,25 +76,28 @@ int main(int argc, char *argv[]) {
         activations
     );
 
-    for (int l=0; l<policynet.num_layers; l++)
-        kaiming_init(&policynet.layers[l]);
-
+    
+    for (int l=0; l<policynet.num_layers; l++) kaiming_init(&policynet.layers[l]);
+    AdamState optimizer_state = create_adam_state(&policynet);
+    
     Policy policy = create_binary_policy(&policynet);
 
     for (int grad_step = 0; grad_step < config.grad_steps; grad_step++) {
-        // if ((grad_step + 1)%100 == 0) {
-            
-        // }
+        TrainingStats stats = binary_policy_gradient(&env, &policy, config.episodes, config.max_steps, config.gamma, NoBaseline);
+        // gd_step(&policynet, config.learning_rate);
+        adam_step(&policynet, &optimizer_state, config.learning_rate, 0.9, 0.999, 1e-08);
 
-        binary_policy_gradient(&env, &policy, config.episodes, config.max_steps, config.gamma, MeanBaseline);
-        gd_step(&policynet, config.learning_rate);
         mlp_zero_grad(&policynet);
+
+        if ((grad_step + 1) % 100 == 0) {
+            fprintf(stderr, "[Step %5d] Return: %.2f, Advantage: %.4f\n", 
+                    grad_step + 1, stats.mean_return, stats.mean_advantage);
+        }
     }
 
-    print_mlp(&policynet);
     // save_mlp_weights(&policy, "weights.bin");
     
-    render_episode(&env, &policy);
+    // render_episode(&env, &policy);
 
     free_mlp(&policynet);
     env_destroy(&env);
@@ -140,7 +148,6 @@ void parse_arguments(int argc, char *argv[], Config *config) {
 
     // Set default values first
     config->seed = DEFAULT_SEED;
-    config->gravity = DEFAULT_GRAVITY;
     config->hidden_size = DEFAULT_HIDDENSIZE;
     config->episodes = DEFAULT_EPISODES;
     config->max_steps = DEFAULT_MAX_STEPS;
@@ -153,9 +160,6 @@ void parse_arguments(int argc, char *argv[], Config *config) {
         switch (opt) {
             case 's':
                 config->seed = atoi(optarg);
-                break;
-            case 'g':
-                config->gravity = atof(optarg);
                 break;
             case 'n':
                 config->hidden_size = atoi(optarg);

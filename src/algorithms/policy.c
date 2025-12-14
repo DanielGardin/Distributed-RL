@@ -90,14 +90,12 @@ void binary_log_prob(
         float exp_neg = expf(neg_logit);
         float p_one = 1.0f / (1.0f + exp_neg);
         
-        if (log_prob) {
+        if (log_prob)
             log_prob[b] = act ? -logf(1.0f + exp_neg) 
                                : neg_logit - logf(1.0f + exp_neg);
-        }
-        
-        if (grad_out) {
-            grad_out[b] = act ? (1.0f - p_one) : -p_one;
-        }
+
+        if (grad_out)
+            grad_out[b] = (float)act - p_one;
     }
 }
 
