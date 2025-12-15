@@ -104,7 +104,7 @@ int test_gradient_2layer_all() {
     Activation acts[] = {relu, identity};
 
     MLP mlp = create_mlp(layer_sizes, 1, n_layers, acts);
-    for (int l = 0; l < n_layers; l++) kaiming_init(&mlp.layers[l]);
+    kaiming_mlp_init(&mlp);
 
     float input[input_size*batch_size];
     for (int i = 0; i < input_size*batch_size; i++)

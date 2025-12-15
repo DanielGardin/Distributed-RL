@@ -30,7 +30,7 @@ LinearLayer create_linear(
     };
 }
 
-void kaiming_init(LinearLayer *linear) {
+void kaiming_linear_init(LinearLayer *linear) {
     float limit = sqrtf(6.0f / linear->input_size);
 
     for (int i = 0; i<linear->input_size*linear->output_size; i++)
@@ -60,6 +60,8 @@ void linear_forward(
 
     // O = σ(Z)
     if (cache) {
+        cache->size = batch_size;
+
         for (int idx = 0; idx < batch_size * linear->output_size; ++idx) {
             const int j = idx % linear->output_size;
             float z = out[idx] + linear->biases[j];
@@ -83,7 +85,7 @@ void linear_backward(
 ) {
     int in_size = linear->input_size;
     int out_size = linear->output_size;
-    int batch_size = cache->batch_size;
+    int batch_size = cache->size;
 
     float *grad_pre = malloc(batch_size * out_size * sizeof(float));  // ∂f/∂z of size [batch_size, output_size]
     for (int i = 0; i < batch_size * out_size; i++) {
@@ -135,11 +137,12 @@ void free_linear(LinearLayer* linear) {
     free(linear->biases_grad);
 }
 
-LinearCache create_linear_cache(const LinearLayer *linear, int batch_size) {
+LinearCache create_linear_cache(const LinearLayer *linear, int capacity) {
     return (LinearCache) {
-        .batch_size = batch_size,
-        .layer_inputs = malloc(batch_size * linear->input_size * sizeof(float)),
-        .pre_activations = malloc(batch_size * linear->output_size * sizeof(float))
+        .size=0,
+        .capacity = capacity,
+        .layer_inputs = malloc(capacity * linear->input_size * sizeof(float)),
+        .pre_activations = malloc(capacity * linear->output_size * sizeof(float))
     };
 }
 

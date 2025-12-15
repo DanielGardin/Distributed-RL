@@ -7,9 +7,10 @@
 
 typedef struct Env {
     void *ptr;
+    char *name;
     int obs_size;
-    int act_size;
-    int act_space;
+    int act_size;    // The size of a single action
+    int *act_space;  // 1 for real input, n for Discrete with n options, of size [act_size]
     void (*reset)(void* env, float* obs_buf);
     void (*step)(void* env, const float* action, float* obs_buf, float* reward_buf, bool* done_buf);
     void (*destroy)(void* env);

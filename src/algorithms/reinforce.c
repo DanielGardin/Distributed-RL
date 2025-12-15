@@ -5,129 +5,42 @@
 #include "algorithms/utils.h"
 #include "algorithms/reinforce.h"
 
-void _print_array(float *array, int size) {
-    printf("{ %.3f", array[0]);
-    for (int i = 1; i<size; i++)
-        printf(", %.3f", array[i]);
-
-    printf(" }");
-}
-
-
-TrainingStats binary_policy_gradient(
-    Env *env,
+void policy_gradient(
     Policy *policy,
-    int n_episodes,
-    int max_steps_per_episode,
+    ExperienceBuffer *buffer,
     float gamma,
-    Baseline baseline
+    float *baseline,
+    MLPCache *cache
 ) {
-    int buffer_size = n_episodes * max_steps_per_episode;
+    int size = buffer->size;
+    int out_size = policy->mlp->output_size;
 
-    float *observations = malloc(buffer_size * env->obs_size * sizeof(float));
-    float *actions = malloc(buffer_size * sizeof(float));
-    float *rewards = malloc(buffer_size * sizeof(float));
-    bool *dones = malloc(buffer_size * sizeof(bool));
+    float *returns = malloc(buffer->size * sizeof(float));
+    discounted_cumsum(buffer, gamma, returns);
+    
+    float *logits = malloc(size * out_size * sizeof(float));
+    mlp_forward(policy->mlp, buffer->observations, size, logits, cache);
 
-    int offset = 0;
-    float mean_return = 0;
-    for (int i = 0; i < n_episodes; i++) {
-        EpisodeStatistics stats = policy_rollout(
-            env,
-            policy,
-            max_steps_per_episode,
-            observations + offset,
-            actions + offset,
-            rewards + offset,
-            dones + offset
-        );
+    float *dlogp = malloc(size * out_size * sizeof(float));
+    policy_log_prob_from_logits(policy, logits, buffer->actions, size, NULL, dlogp);
 
-        offset += stats.total_steps;
-        mean_return += stats.episode_return;
+    for (int t = 0; t < size; t++) {
+        float advantage = returns[t];
+        if (baseline) advantage -= baseline[t];
+
+        for (int j = 0; j < out_size; j++)
+            dlogp[t * out_size + j] *= -advantage;
     }
-    mean_return /= n_episodes;
-    discounted_cumsum_inplace(rewards, dones, offset, gamma);
 
-    MLPCache cache = create_mlp_cache(policy->mlp, offset);
-    float *logits = malloc(offset * sizeof(float));
-    mlp_forward(policy->mlp, observations, offset, logits, &cache);
+    mlp_backward(policy->mlp, cache, dlogp, NULL);
 
-    float *dlogp  = malloc(offset * sizeof(float));
-    policy_log_prob_from_logits(policy, logits, actions, offset, NULL, dlogp);
-
-    float baseline_value = 0.0f;
-    if (baseline == MeanBaseline) baseline_value = mean_return;
-
-    float mean_advantage = 0.0f;
-    for (int t = 0; t < offset; t++) {
-        float advantage = rewards[t] - baseline_value;
-        mean_advantage += advantage;
-        dlogp[t] *= -advantage / offset;
-    }
-    mean_advantage /= offset;
-
-    mlp_backward(policy->mlp, &cache, dlogp, NULL);
-
+    free(returns);
     free(logits);
     free(dlogp);
-    free_mlp_cache(&cache);
-
-    free(observations);
-    free(actions);
-    free(rewards);
-    free(dones);
-
-    return (TrainingStats) {
-        .mean_return = mean_return,
-        .mean_advantage = mean_advantage
-    };
 }
 
+void mean_baseline(ExperienceBuffer *buffer, int gamma, float *baseline) {
+    float mean_R = mean_return(buffer);
 
-// void discrete_policy_gradient(
-//     Env *env,
-//     Policy *policy,
-//     int n_episodes,
-//     int max_steps_per_episode,
-//     float gamma
-// ) {
-//     float *observations = malloc(max_steps_per_episode * env->obs_size * sizeof(float));
-//     float *actions = malloc(max_steps_per_episode * env->act_size * sizeof(float));
-//     float *rewards = malloc(max_steps_per_episode * sizeof(float));
-//     bool *dones = malloc(max_steps_per_episode * sizeof(bool));
-
-//     for (int i = 0; i < n_episodes; i++) {
-//         int total_steps = policy_rollout(
-//             env,
-//             policy,
-//             max_steps_per_episode,
-//             observations,
-//             actions,
-//             rewards,
-//             dones
-//         );
-
-//         discounted_cumsum_inplace(rewards, total_steps, gamma);
-
-//         MLPCache cache = create_mlp_cache(policy->mlp, total_steps);
-//         float *logits = malloc(total_steps * env->act_size * sizeof(float));
-//         mlp_forward(policy->mlp, observations, total_steps, logits, &cache);
-
-//         float *dlogp  = malloc(total_steps * sizeof(float));
-//         policy_log_prob_from_logits(policy, logits, actions, total_steps, NULL, dlogp);
-
-//         for (int t = 0; t < total_steps; t++)
-//             dlogp[t] *= -rewards[t];
-
-//         mlp_backward(policy->mlp, &cache, dlogp, NULL);
-
-//         free(logits);
-//         free(dlogp);
-//         free_mlp_cache(&cache);
-//     }
-
-//     free(observations);
-//     free(actions);
-//     free(rewards);
-//     free(dones);
-// }
+    for (int t = 0; t < buffer->size; t++) baseline[t] = mean_R;
+}

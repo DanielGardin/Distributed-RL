@@ -17,9 +17,11 @@ MLP create_mlp(
 );
 
 typedef struct MLPCache {
-    int num_layers, batch_size;
+    int num_layers, size, capacity;
     LinearCache *layer_caches;
 } MLPCache;
+
+void kaiming_mlp_init(MLP *mlp);
 
 void mlp_forward(const MLP* mlp, const float* input, int batch_size, float* out, MLPCache *cache);
 
@@ -29,8 +31,10 @@ void mlp_zero_grad(MLP *mlp);
 
 int save_mlp_weights(MLP *mlp, char *path);
 
+int load_mlp_weights(MLP *mlp, const char *path);
+
 void free_mlp(MLP* mlp);
 
-MLPCache create_mlp_cache(const MLP *mlp, int batch_size);
+MLPCache create_mlp_cache(const MLP *mlp, int capacity);
 
 void free_mlp_cache(MLPCache *cache);

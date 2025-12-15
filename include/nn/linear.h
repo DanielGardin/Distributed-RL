@@ -21,13 +21,13 @@ LinearLayer create_linear(
 );
 
 typedef struct LinearCache {
-    int batch_size;
+    int size, capacity;
     float *layer_inputs;     // [batch_size, input_size]
     float *pre_activations;  // [batch_size, output_size]
 } LinearCache;
 
 
-void kaiming_init(LinearLayer *linear);
+void kaiming_linear_init(LinearLayer *linear);
 
 void linear_forward(
     const LinearLayer *linear,

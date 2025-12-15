@@ -4,48 +4,61 @@
 #include <stdio.h>
 #include "algorithms/utils.h"
 
-void discounted_cumsum_inplace(float *r, bool *dones, int size, float gamma) {
-    float running = 0.0f;
-    
-    for (int t = size - 1; t >= 0; --t) {
-        if (dones[t]) running = 0.0f;
+ExperienceBuffer create_buffer(
+    int capacity,
+    int obs_size,
+    int act_size
+) {
+    float *observations = malloc(capacity * obs_size * sizeof(float));
+    float *actions = malloc(capacity * act_size * sizeof(float));
+    float *rewards = malloc(capacity * sizeof(float));
+    bool *dones = malloc(capacity * sizeof(bool));
 
-        running = r[t] + gamma * running;
-        r[t] = running;   
-    }
+    return (ExperienceBuffer) {
+        .capacity=capacity,
+        .size=0,
+        .observations=observations,
+        .actions=actions,
+        .rewards=rewards,
+        .dones=dones
+    };
 }
 
-EpisodeStatistics policy_rollout(
+void free_buffer(ExperienceBuffer *buffer) {
+    free(buffer->observations);
+    free(buffer->actions);
+    free(buffer->rewards);
+    free(buffer->dones);
+}
+
+void policy_rollout(
     Env *env,
     const Policy *policy,
     int n_steps,
-    float *observations,
-    float *actions,
-    float *rewards,
-    bool *dones
+    ExperienceBuffer *buffer
 ) {
-    float *cur_obs = observations;
+    float *cur_obs = buffer->observations;
     float *next_obs;
     float *last_obs_buffer = malloc(env->obs_size * sizeof(float));
+    
+    float *cur_act = buffer->actions;
+    float *cur_rew = buffer->rewards;
+    bool *cur_done = buffer->dones;
 
-    float *cur_act = actions;
-    float *cur_rew = rewards;
-    bool *cur_done = dones;
-
+    int max_steps = n_steps > buffer->capacity ? buffer->capacity : n_steps;
+    
     env_reset(env, cur_obs);
-
+    
     int step_count = 0;
     float cum_reward = 0.0f;
-    float entropy, total_entropy = 0.0f;
     bool done = false;
-    for (; step_count < n_steps && !done; step_count++) {
-        policy_sample_action(policy, cur_obs, 1, cur_act, NULL, &entropy);
-        total_entropy += entropy;
-
+    for (; step_count < max_steps && !done; step_count++) {
+        policy_sample_action(policy, cur_obs, 1, cur_act);
+        
         next_obs = (step_count + 1 < n_steps)
-                    ? cur_obs + env->obs_size
-                    : last_obs_buffer;
-
+        ? cur_obs + env->obs_size
+        : last_obs_buffer;
+        
         env_step(env, cur_act, next_obs, cur_rew, &done);
         cum_reward += *cur_rew;
         *cur_done = done;
@@ -56,39 +69,40 @@ EpisodeStatistics policy_rollout(
         cur_done += 1;
     };
 
+    buffer->size = step_count;
     free(last_obs_buffer);
-
-    return (EpisodeStatistics) {
-        .episode_return = cum_reward,
-        .total_steps=step_count,
-        .mean_entropy=total_entropy/step_count
-    };
 }
 
-// EpisodeStatistics evaluate_policy(Env *env, const Policy *policy, int max_steps, int repeats) {
-//     float *obs = malloc(env->obs_size * sizeof(float));
-//     float *act = malloc(env->act_size * sizeof(float));
+float mean_return(ExperienceBuffer *buffer) {
+    float total_return = 0.0f;
+    int n_episodes = 0;
 
-//     float reward;
-//     bool done = false;
+    float cum_reward = 0.0f;
+    for (int t = 0; t < buffer->size; t++) {
+        cum_reward += buffer->rewards[t];
 
-//     env_reset(env, obs);
+        if (buffer->dones[t]) {
+            total_return += cum_reward;
+            cum_reward = 0.0f;
+            n_episodes++;
+        }
+    }
 
-//     int step_count = 0;
-//     for (; !done && step_count < max_steps; step_count++) {
-//         env_render(env);
+    if (n_episodes == 0) {
+        total_return = cum_reward;
+        n_episodes++;
+    }
 
-//         print_array(obs, env->obs_size);
-//         fprintf(stderr, "\n");
+    return total_return / n_episodes;
+}
 
-//         policy_sample_action(policy, obs, 1, act, NULL);
+void discounted_cumsum(ExperienceBuffer *buffer, float gamma, float *returns) {
+    float running = 0.0f;
 
-//         env_step(env, act, obs, &reward, &done);
+    for (int t = buffer->size - 1; t >= 0; --t) {
+        if (buffer->dones[t]) running = 0.0f;
 
-//         print_array(act, env->act_size);
-//         fprintf(stderr, "\n");
-//     };
-
-//     free(obs);
-//     free(act);
-// }
+        running = buffer->rewards[t] + gamma * running;
+        returns[t] = running;   
+    }
+}

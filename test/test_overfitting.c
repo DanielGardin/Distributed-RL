@@ -90,9 +90,7 @@ int test_mlp_2layer_overfit() {
     Activation activations[] = {relu, identity};
     MLP mlp = create_mlp(layer_sizes, 1, 2, activations);
     
-    for (int i = 0; i < mlp.num_layers; i++) {
-        kaiming_init(&mlp.layers[i]);
-    }
+    kaiming_mlp_init(&mlp);
 
     int batch_size = 32;
     float *input = (float *)malloc(batch_size * 2 * sizeof(float));

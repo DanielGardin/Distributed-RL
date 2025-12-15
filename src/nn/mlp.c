@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
+#include <stdint.h>
 
 #include "rng.h"
 #include "nn/mlp.h"
@@ -36,15 +37,24 @@ MLP create_mlp(
     };
 }
 
+void kaiming_mlp_init(MLP *mlp) {
+    for (int l=0; l<mlp->num_layers; l++)
+        kaiming_linear_init(&mlp->layers[l]);
+}
+
 void mlp_forward(const MLP* mlp, const float* input, int batch_size, float* out, MLPCache *cache) {
     const float *current_input = input;
     float *output;
 
-    if (cache) memcpy(
-        cache->layer_caches[0].layer_inputs,
-        input,
-        batch_size * mlp->input_size * sizeof(float)
-    );
+    if (cache) {
+        cache->size = batch_size;
+
+        memcpy(
+            cache->layer_caches[0].layer_inputs,
+            input,
+            batch_size * mlp->input_size * sizeof(float)
+        );
+    }
 
     const LinearLayer *layer;
     for (int l = 0; l < mlp->num_layers; l++) {
@@ -65,7 +75,7 @@ void mlp_forward(const MLP* mlp, const float* input, int batch_size, float* out,
 
 void mlp_backward(MLP *mlp, const MLPCache *cache, const float *out_grad, float *input_gradient) {
     int num_layers = mlp->num_layers;
-    int batch_size = cache->batch_size;
+    int batch_size = cache->size;
 
     const float *current_grad = out_grad;
     float *next_grad = NULL;
@@ -103,38 +113,125 @@ int save_mlp_weights(MLP *mlp, char *path) {
     FILE *file = fopen(path, "wb");
 
     if (!file) {
-        printf("Error opening file %s.", path);
+        fprintf(stderr, "Error opening file %s.\n", path);
         return 0;
     }
 
-    LinearLayer *layer;
-    int in, out;
-    for (int l=0; l<mlp->num_layers; l++) {
-        layer = &mlp->layers[l];
+    const uint32_t magic = 0x4D4C5057; /* 'MLPW' */
+    const uint32_t version = 1;
+    uint32_t num_layers = (uint32_t)mlp->num_layers;
 
-        in = layer->input_size;
-        out = layer->output_size;
+    if (fwrite(&magic, sizeof(magic), 1, file) != 1 ||
+        fwrite(&version, sizeof(version), 1, file) != 1 ||
+        fwrite(&num_layers, sizeof(num_layers), 1, file) != 1) {
+        fprintf(stderr, "Error writing header to %s.\n", path);
+        fclose(file);
+        return 0;
+    }
 
-        fprintf(file, "Layer %d %d %d", l, in, out);
-        fwrite(layer->weights, sizeof(float), in*out, file);
-        fwrite(layer->biases, sizeof(float), out, file);
+    for (int l = 0; l < mlp->num_layers; l++) {
+        LinearLayer *layer = &mlp->layers[l];
+        uint32_t in = (uint32_t)layer->input_size;
+        uint32_t out = (uint32_t)layer->output_size;
+
+        if (fwrite(&in, sizeof(in), 1, file) != 1 ||
+            fwrite(&out, sizeof(out), 1, file) != 1) {
+            fprintf(stderr, "Error writing layer sizes to %s.\n", path);
+            fclose(file);
+            return 0;
+        }
+
+        size_t wcount = (size_t)in * (size_t)out;
+        if (fwrite(layer->weights, sizeof(float), wcount, file) != wcount) {
+            fprintf(stderr, "Error writing weights for layer %d to %s.\n", l, path);
+            fclose(file);
+            return 0;
+        }
+
+        if (fwrite(layer->biases, sizeof(float), out, file) != out) {
+            fprintf(stderr, "Error writing biases for layer %d to %s.\n", l, path);
+            fclose(file);
+            return 0;
+        }
     }
 
     fclose(file);
-
-    return 0;
+    return 1;
 }
 
-MLPCache create_mlp_cache(const MLP *mlp, int batch_size) {
+int load_mlp_weights(MLP *mlp, const char *path) {
+    FILE *file = fopen(path, "rb");
+    if (!file) {
+        fprintf(stderr, "Error opening file %s.\n", path);
+        return 0;
+    }
+
+    uint32_t magic = 0, version = 0, num_layers = 0;
+    if (fread(&magic, sizeof(magic), 1, file) != 1 ||
+        fread(&version, sizeof(version), 1, file) != 1 ||
+        fread(&num_layers, sizeof(num_layers), 1, file) != 1) {
+        fprintf(stderr, "Error reading header from %s.\n", path);
+        fclose(file);
+        return 0;
+    }
+
+    if (magic != 0x4D4C5057 || version != 1) {
+        fprintf(stderr, "Invalid file format or version in %s.\n", path);
+        fclose(file);
+        return 0;
+    }
+
+    if ((int)num_layers != mlp->num_layers) {
+        fprintf(stderr, "Layer count mismatch: file=%u, mlp=%d.\n", num_layers, mlp->num_layers);
+        fclose(file);
+        return 0;
+    }
+
+    for (int l = 0; l < mlp->num_layers; l++) {
+        uint32_t in = 0, out = 0;
+        if (fread(&in, sizeof(in), 1, file) != 1 ||
+            fread(&out, sizeof(out), 1, file) != 1) {
+            fprintf(stderr, "Error reading layer sizes from %s.\n", path);
+            fclose(file);
+            return 0;
+        }
+
+        LinearLayer *layer = &mlp->layers[l];
+        if ((int)in != layer->input_size || (int)out != layer->output_size) {
+            fprintf(stderr, "Layer %d size mismatch: file=(%u,%u) mlp=(%d,%d).\n", l, in, out, layer->input_size, layer->output_size);
+            fclose(file);
+            return 0;
+        }
+
+        size_t wcount = (size_t)in * (size_t)out;
+        if (fread(layer->weights, sizeof(float), wcount, file) != wcount) {
+            fprintf(stderr, "Error reading weights for layer %d from %s.\n", l, path);
+            fclose(file);
+            return 0;
+        }
+
+        if (fread(layer->biases, sizeof(float), out, file) != out) {
+            fprintf(stderr, "Error reading biases for layer %d from %s.\n", l, path);
+            fclose(file);
+            return 0;
+        }
+    }
+
+    fclose(file);
+    return 1;
+}
+
+MLPCache create_mlp_cache(const MLP *mlp, int capacity) {
     MLPCache cache;
 
+    cache.size = 0;
+    cache.capacity = capacity;
     cache.num_layers = mlp->num_layers;
-    cache.batch_size = batch_size;
     cache.layer_caches = malloc(mlp->num_layers * sizeof(LinearCache));
 
     for (int l = 0; l < mlp->num_layers; l++) {
         cache.layer_caches[l] = create_linear_cache(
-            &mlp->layers[l], batch_size
+            &mlp->layers[l], capacity
         );
     }
 

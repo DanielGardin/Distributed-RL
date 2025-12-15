@@ -1,30 +1,14 @@
 #pragma once
 
 #include "policy.h"
+#include "utils.h"
 
-typedef enum {
-    NoBaseline,
-    MeanBaseline
-} Baseline;
-
-typedef struct {
-    float mean_return;
-    float mean_advantage;
-} TrainingStats;
-
-TrainingStats binary_policy_gradient(
-    Env *env,
+void policy_gradient(
     Policy *policy,
-    int n_episodes,
-    int max_steps_per_episode,
+    ExperienceBuffer *buffer,
     float gamma,
-    Baseline baseline
+    float *baseline,
+    MLPCache *cache
 );
 
-void discrete_policy_gradient(
-    Env *env,
-    Policy *policy,
-    int n_episodes,
-    int max_steps_per_episode,
-    float gamma
-);
+void mean_baseline(ExperienceBuffer *buffer, int gamma, float *baseline);

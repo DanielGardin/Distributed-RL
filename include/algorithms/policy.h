@@ -18,6 +18,9 @@ typedef struct Policy {
     /** Pointer to the underlying neural network (NOT owned). */
     MLP *mlp;
 
+    int act_size;
+    int n_actions;
+
     /**
      * Samples an action from the policy.
      *
@@ -34,15 +37,14 @@ typedef struct Policy {
      *  - obs, action, log_prob are valid pointers
      */
     void (*sample) (
-        const MLP *mlp,
-        const float *obs,
+        const struct Policy *policy,
+        const float *logits,
         int batch_size,
-        float *action,
-        float *log_prob,
-        float *entropy
+        float *actions
     );
 
     void (*log_prob) (
+        const struct Policy *policy,
         const float *logits,
         const float *actions,
         int batch_size,
@@ -51,6 +53,7 @@ typedef struct Policy {
     );
 
     void (*entropy) (
+        const struct Policy *policy,
         const float *logits,
         int batch_size,
         float *entropy,
@@ -74,15 +77,13 @@ typedef struct Policy {
  * Preconditions:
  *  - All pointers provided are valid
  */
-static inline void policy_sample_action(
+static inline void policy_sample_action_from_logits(
     const Policy *policy,
-    const float *obs,
+    const float *logits,
     int batch_size,
-    float *actions,
-    float *log_prob,
-    float *entropy
+    float *actions
 ) {
-    policy->sample(policy->mlp, obs, batch_size, actions, log_prob, entropy);
+    policy->sample(policy, logits, batch_size, actions);
 }
 
 static inline void policy_log_prob_from_logits(
@@ -93,7 +94,7 @@ static inline void policy_log_prob_from_logits(
     float *log_prob,      // Can be NULL
     float *grad_out       // Can be NULL
 ) {
-    policy->log_prob(logits, actions, batch_size, log_prob, grad_out);
+    policy->log_prob(policy, logits, actions, batch_size, log_prob, grad_out);
 }
 
 static inline void policy_entropy_from_logits(
@@ -103,8 +104,15 @@ static inline void policy_entropy_from_logits(
     float *entropy,      // Can be NULL
     float *grad_out       // Can be NULL
 ) {
-    policy->entropy(logits, batch_size, entropy, grad_out);
+    policy->entropy(policy, logits, batch_size, entropy, grad_out);
 }
+
+void policy_sample_action(
+    const Policy *policy,
+    const float *obs,
+    int batch_size,
+    float *actions
+);
 
 void policy_log_prob(
     const Policy *policy,
@@ -148,5 +156,4 @@ Policy create_binary_policy(MLP *mlp);
  * Returns:
  *  - Initialized Policy (does not allocate or copy mlp)
  */
-Policy create_discrete_policy(MLP *mlp);
-
+Policy create_discrete_policy(MLP *mlp, int n_actions);

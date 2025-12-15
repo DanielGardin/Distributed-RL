@@ -106,11 +106,14 @@ Env make_cartpole_env(float force_magnitude, bool continuous) {
     state->force_magnitude=force_magnitude;
     state->continuous=continuous;
 
+    static int act_space[1] = {2};
+
     return (Env){
         .ptr = state,
+        .name = "Cartpole",
         .obs_size = 4,
         .act_size = 1,
-        .act_space = 2,
+        .act_space = act_space,
         .reset = (void (*)(void*, float*))cartpole_reset,
         .step = (void (*)(void*, const float*, float*, float*, bool*))cartpole_step,
         .destroy = (void (*)(void*))cartpole_destroy,
