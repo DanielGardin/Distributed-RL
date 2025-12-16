@@ -2,18 +2,7 @@
 
 #include <mpi.h>
 
-#include "distributed/mpi_nn.h"
-
-static int get_mlp_total_params(const MLP *mlp) {
-    int total = 0;
-    for (int i = 0; i < mlp->num_layers; i++) {
-        LinearLayer *layer = &mlp->layers[i];
-        total += layer->input_size * layer->output_size;
-        total += layer->output_size;
-    }
-
-    return total;
-}
+#include "distributed/comm.h"
 
 static void serialize_gradients(const MLP *mlp, float *buffer) {
     int offset = 0;
@@ -83,7 +72,7 @@ static void deserialize_weights(MLP *mlp, const float *buffer) {
 }
 
 void broadcast_model_weights(MLP *mlp, const MPIContext *mpi_ctx, int src_rank) {
-    int total_params = get_mlp_total_params(mlp);
+    int total_params = get_num_params(mlp);
     float *weights_buffer = (float *)malloc(total_params * sizeof(float));
 
     if (mpi_ctx->rank == src_rank) {
@@ -98,10 +87,10 @@ void broadcast_model_weights(MLP *mlp, const MPIContext *mpi_ctx, int src_rank) 
 }
 
 void aggregate_gradients(MLP *mlp, const MPIContext *mpi_ctx, int compute_rank) {
-    int total_params = get_mlp_total_params(mlp);
+    int total_params = get_num_params(mlp);
     float *local_grad_buffer = (float *)malloc(total_params * sizeof(float));
     float *aggregated_grad_buffer = (float *)malloc(total_params * sizeof(float));
-    
+
     // All ranks serialize their gradients
     serialize_gradients(mlp, local_grad_buffer);
     

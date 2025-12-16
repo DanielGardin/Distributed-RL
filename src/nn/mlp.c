@@ -104,6 +104,16 @@ void free_mlp(MLP* mlp) {
     free(mlp->layers);
 }
 
+int get_num_params(MLP *mlp) {
+    int total = 0;
+    for (int i = 0; i < mlp->num_layers; i++) {
+        LinearLayer *layer = &mlp->layers[i];
+        total += (layer->input_size + 1) * layer->output_size;
+    }
+
+    return total;
+}
+
 void mlp_zero_grad(MLP *mlp) {
     for (int i = 0; i < mlp->num_layers; i++)
         linear_zero_grad(&mlp->layers[i]);

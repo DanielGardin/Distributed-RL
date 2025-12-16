@@ -35,6 +35,8 @@ int load_mlp_weights(MLP *mlp, const char *path);
 
 void free_mlp(MLP* mlp);
 
+int get_num_params(MLP *mlp);
+
 MLPCache create_mlp_cache(const MLP *mlp, int capacity);
 
 void free_mlp_cache(MLPCache *cache);

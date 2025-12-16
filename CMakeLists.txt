@@ -47,9 +47,9 @@ function(link_libraries_to_target target)
 endfunction()
 
 # Main executable
-add_executable(cartpole_demo ${SRCS})
-link_libraries_to_target(cartpole_demo)
-set_target_properties(cartpole_demo PROPERTIES
+add_executable(reinforce ${SRCS})
+link_libraries_to_target(reinforce)
+set_target_properties(reinforce PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
     BUILD_RPATH "${RAYLIB_DIR}/lib"
     INSTALL_RPATH "$ORIGIN/../${RAYLIB_DIR}/lib"
