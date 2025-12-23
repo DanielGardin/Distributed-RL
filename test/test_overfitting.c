@@ -30,13 +30,16 @@ int test_mlp_overfit() {
     float learning_rate = 0.01f;
     float final_loss = 0.0f;
 
+    float *predictions = (float *)malloc(batch_size * sizeof(float));
+    float *output_grad = (float *)malloc(batch_size * sizeof(float));
+
+    Optimizer opt = make_gd(learning_rate);
+
     for (int epoch = 0; epoch < num_epochs; epoch++) {
         mlp_zero_grad(&mlp);
-        float *predictions = (float *)malloc(batch_size * sizeof(float));
         mlp_forward(&mlp, input, batch_size, predictions, &cache);
 
         float total_loss = 0.0f;
-        float *output_grad = (float *)malloc(batch_size * sizeof(float));
         for (int i = 0; i < batch_size; i++) {
             float error = predictions[i] - targets[i];
             total_loss += error * error;
@@ -44,13 +47,8 @@ int test_mlp_overfit() {
         }
         final_loss = total_loss / batch_size;
 
-        float *input_grad = (float *)malloc(batch_size * 2 * sizeof(float));
-        mlp_backward(&mlp, &cache, output_grad, input_grad);
-        gd_step(&mlp, learning_rate);
-
-        free(predictions);
-        free(output_grad);
-        free(input_grad);
+        mlp_backward(&mlp, &cache, output_grad, NULL);
+        optimizer_step(&opt, &mlp, &cache);
 
         if (epoch % 250 == 0) {
             printf("  Epoch %d, Loss: %.6f\n", epoch, final_loss);
@@ -60,22 +58,24 @@ int test_mlp_overfit() {
     printf("  Final Loss: %.6f\n", final_loss);
     ASSERT_TRUE("loss decreased significantly", final_loss < 0.015f);
 
-    float *final_predictions = (float *)malloc(batch_size * sizeof(float));
-    mlp_forward(&mlp, input, batch_size, final_predictions, &cache);
+    // Final evaluation
+    mlp_forward(&mlp, input, batch_size, predictions, &cache);
 
     float max_error = 0.0f;
     for (int i = 0; i < batch_size; i++) {
-        float error = fabs(final_predictions[i] - targets[i]);
+        float error = fabs(predictions[i] - targets[i]);
         if (error > max_error) {
             max_error = error;
         }
     }
     printf("  Max prediction error: %.6f\n", max_error);
     ASSERT_TRUE("predictions match targets", max_error < 0.02f);
-
+    
+    free(predictions);
+    free(output_grad);
     free(input);
     free(targets);
-    free(final_predictions);
+    free_optimizer(&opt);
     free_mlp_cache(&cache);
     free_mlp(&mlp);
 
@@ -105,8 +105,9 @@ int test_mlp_2layer_overfit() {
     }
 
     MLPCache cache = create_mlp_cache(&mlp, batch_size);
+    Optimizer opt = make_gd(0.05f);
+
     int num_epochs = 5000;
-    float learning_rate = 0.05f;
     float final_loss = 0.0f;
 
     for (int epoch = 0; epoch < num_epochs; epoch++) {
@@ -125,7 +126,7 @@ int test_mlp_2layer_overfit() {
 
         float *input_grad = (float *)malloc(batch_size * 2 * sizeof(float));
         mlp_backward(&mlp, &cache, output_grad, input_grad);
-        gd_step(&mlp, learning_rate);
+        optimizer_step(&opt, &mlp, &cache);
 
         free(predictions);
         free(output_grad);
@@ -155,6 +156,7 @@ int test_mlp_2layer_overfit() {
     free(input);
     free(targets);
     free(final_predictions);
+    free_optimizer(&opt);
     free_mlp_cache(&cache);
     free_mlp(&mlp);
 

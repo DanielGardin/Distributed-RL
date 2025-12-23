@@ -48,6 +48,8 @@ void linear_zero_grad(LinearLayer *linear);
 
 void free_linear(LinearLayer* linear);
 
-LinearCache create_linear_cache(const LinearLayer *linear, int batch_size);
+LinearCache create_linear_cache(const LinearLayer *linear, int capacity);
+
+void empty_linear_cache(LinearCache *cache);
 
 void free_linear_cache(LinearCache *cache);

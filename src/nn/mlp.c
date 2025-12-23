@@ -42,35 +42,49 @@ void kaiming_mlp_init(MLP *mlp) {
         kaiming_linear_init(&mlp->layers[l]);
 }
 
+
 void mlp_forward(const MLP* mlp, const float* input, int batch_size, float* out, MLPCache *cache) {
     const float *current_input = input;
     float *output;
 
+    int in_size = mlp->input_size;
+
     if (cache) {
-        cache->size = batch_size;
+        if (cache->size + batch_size > cache->capacity) {
+            fprintf(
+                stderr, "WARNING: The current batch overflows the cache capacity. Results by this call are not being cached. "
+                "Currently using %d out of %d cache capacity.\n",
+                cache->size, cache->capacity
+            );
 
-        memcpy(
-            cache->layer_caches[0].layer_inputs,
-            input,
-            batch_size * mlp->input_size * sizeof(float)
-        );
+            cache = NULL;
+        } else {
+            memcpy(
+                cache->layer_caches[0].layer_inputs + cache->size * in_size,
+                input,
+                batch_size * in_size * sizeof(float)
+            );
+        }
     }
-
+    
     const LinearLayer *layer;
     for (int l = 0; l < mlp->num_layers; l++) {
         layer = &mlp->layers[l];
-
+        
         if (l == mlp->num_layers - 1) output = out;
-        else if (cache) output = cache->layer_caches[l+1].layer_inputs;
-        else output = malloc(batch_size * layer->output_size * sizeof(float));
+        else if (cache) {
+            // Write the current layer's output directly into the next layer's input buffer
+            output = cache->layer_caches[l+1].layer_inputs + cache->size * layer->output_size;
+        } else output = malloc(batch_size * layer->output_size * sizeof(float));
 
         linear_forward(layer, current_input, batch_size, output, cache ? &cache->layer_caches[l] : NULL);
 
-        if (l > 0 && cache == NULL)
-            free((float *)current_input);
+        if (l > 0 && !cache) free((float *)current_input);
 
         current_input = output;
     }
+
+    if (cache) cache->size += batch_size;
 }
 
 void mlp_backward(MLP *mlp, const MLPCache *cache, const float *out_grad, float *input_gradient) {
@@ -246,6 +260,12 @@ MLPCache create_mlp_cache(const MLP *mlp, int capacity) {
     }
 
     return cache;
+}
+
+void empty_mlp_cache(MLPCache *cache) {
+    cache->size = 0;
+    for (int l = 0; l < cache->num_layers; l++)
+        empty_linear_cache(&cache->layer_caches[l]);
 }
 
 void free_mlp_cache(MLPCache *cache) {

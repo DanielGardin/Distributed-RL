@@ -19,6 +19,7 @@ MLP create_mlp(
 typedef struct MLPCache {
     int num_layers, size, capacity;
     LinearCache *layer_caches;
+    float *output;
 } MLPCache;
 
 void kaiming_mlp_init(MLP *mlp);
@@ -38,5 +39,7 @@ void free_mlp(MLP* mlp);
 int get_num_params(MLP *mlp);
 
 MLPCache create_mlp_cache(const MLP *mlp, int capacity);
+
+void empty_mlp_cache(MLPCache *cache);
 
 void free_mlp_cache(MLPCache *cache);

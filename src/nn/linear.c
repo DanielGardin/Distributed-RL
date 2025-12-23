@@ -60,15 +60,16 @@ void linear_forward(
 
     // O = σ(Z)
     if (cache) {
-        cache->size = batch_size;
+        float *pre_activations = cache->pre_activations + cache->size * outsize;
 
-        for (int idx = 0; idx < batch_size * linear->output_size; ++idx) {
-            const int j = idx % linear->output_size;
+        for (int idx = 0; idx < batch_size * outsize; ++idx) {
+            const int j = idx % outsize;
             float z = out[idx] + linear->biases[j];
-            cache->pre_activations[idx] = z;
-
+            pre_activations[idx] = z;
             out[idx] = linear->activation.fn(z);
         }
+
+        cache->size += batch_size;
     } else {
         for (int idx = 0; idx < batch_size * linear->output_size; ++idx) {
             const int j = idx % linear->output_size;
@@ -129,7 +130,6 @@ void linear_zero_grad(LinearLayer *linear) {
     memset(linear->biases_grad, 0, linear->output_size * sizeof(float));
 }
 
-
 void free_linear(LinearLayer* linear) {
     free(linear->weights);
     free(linear->biases);
@@ -144,6 +144,10 @@ LinearCache create_linear_cache(const LinearLayer *linear, int capacity) {
         .layer_inputs = malloc(capacity * linear->input_size * sizeof(float)),
         .pre_activations = malloc(capacity * linear->output_size * sizeof(float))
     };
+}
+
+void empty_linear_cache(LinearCache *cache) {
+    cache->size = 0;
 }
 
 void free_linear_cache(LinearCache *cache) {

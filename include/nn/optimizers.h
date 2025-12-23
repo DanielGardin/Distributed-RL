@@ -1,21 +1,31 @@
 #pragma once
 
+#include "stdlib.h"
 #include "mlp.h"
 
-typedef struct AdamState {
-    int num_layers;
-    long t;
-    float **weights_m;
-    float **weights_v;
-    float **biases_m;
-    float **biases_v;
-} AdamState;
+typedef struct Optimizer {
+    void *state;
+    void (*step)(void *, MLP *, MLPCache *);
+    void (*destroy)(void *);
+} Optimizer;
 
-AdamState create_adam_state(const MLP *mlp);
+static inline void optimizer_step(Optimizer *opt, MLP *mlp, MLPCache *cache) {
+    opt->step(opt->state, mlp, cache);
+    empty_mlp_cache(cache);
+}
 
+static inline void free_optimizer(Optimizer *opt) {
+    if (opt->destroy) opt->destroy(opt->state);
+    free(opt->state);
+}
 
-void free_adam_state(AdamState *state);
+Optimizer make_gd(float lr);
 
-void gd_step(MLP *mlp, float lr);
+Optimizer make_adam(
+    MLP *mlp,
+    float lr,
+    float beta1,
+    float beta2,
+    float epsilon
+);
 
-void adam_step(MLP *mlp, AdamState *state, float lr, float beta1, float beta2, float epsilon);
