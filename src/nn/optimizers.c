@@ -51,8 +51,6 @@ typedef struct AdamState {
     float **biases_v;
 } AdamState;
 
-
-
 void adam_step(AdamState *state, MLP *mlp, MLPCache *cache) {
     float lr = state->lr;
     float beta1 = state->beta1;
@@ -113,13 +111,15 @@ Optimizer make_adam(
     state->lr=lr;
     state->beta1=beta1;
     state->beta2=beta2;
-    state->epsilon;
+    state->epsilon=epsilon;
 
+    state->t = 0;
     state->weights_m = malloc(mlp->num_layers * sizeof(float*));
     state->weights_v = malloc(mlp->num_layers * sizeof(float*));
     state->biases_m = malloc(mlp->num_layers * sizeof(float*));
     state->biases_v = malloc(mlp->num_layers * sizeof(float*));
 
+    state->num_layers = mlp->num_layers;
     for (int l = 0; l < mlp->num_layers; l++) {
         int weight_size = mlp->layers[l].input_size * mlp->layers[l].output_size;
         int bias_size = mlp->layers[l].output_size;

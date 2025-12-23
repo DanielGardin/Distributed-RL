@@ -70,9 +70,11 @@ void mlp_forward(const MLP* mlp, const float* input, int batch_size, float* out,
     const LinearLayer *layer;
     for (int l = 0; l < mlp->num_layers; l++) {
         layer = &mlp->layers[l];
-        
-        if (l == mlp->num_layers - 1) output = out;
-        else if (cache) {
+
+        if (l == mlp->num_layers - 1) {
+            if (out) output = out;
+            else output = cache->output + cache->size * mlp->output_size;
+        } else if (cache) {
             // Write the current layer's output directly into the next layer's input buffer
             output = cache->layer_caches[l+1].layer_inputs + cache->size * layer->output_size;
         } else output = malloc(batch_size * layer->output_size * sizeof(float));
@@ -84,7 +86,17 @@ void mlp_forward(const MLP* mlp, const float* input, int batch_size, float* out,
         current_input = output;
     }
 
-    if (cache) cache->size += batch_size;
+    if (cache) {
+        if (out) {
+            memcpy(
+                cache->output + cache->size * mlp->output_size,
+                out,
+                batch_size * mlp->output_size * sizeof(float)
+            );
+        }
+
+        cache->size += batch_size;
+    }
 }
 
 void mlp_backward(MLP *mlp, const MLPCache *cache, const float *out_grad, float *input_gradient) {
@@ -252,6 +264,7 @@ MLPCache create_mlp_cache(const MLP *mlp, int capacity) {
     cache.capacity = capacity;
     cache.num_layers = mlp->num_layers;
     cache.layer_caches = malloc(mlp->num_layers * sizeof(LinearCache));
+    cache.output = malloc(capacity * mlp->output_size *  sizeof(float));
 
     for (int l = 0; l < mlp->num_layers; l++) {
         cache.layer_caches[l] = create_linear_cache(
@@ -273,4 +286,5 @@ void free_mlp_cache(MLPCache *cache) {
         free_linear_cache(&cache->layer_caches[l]);
 
     free(cache->layer_caches);
+    free(cache->output);
 }

@@ -22,7 +22,9 @@ void policy_rollout(
     Env *env,
     const Policy *policy,
     int n_steps,
-    ExperienceBuffer *buffer
+    int n_episodes,
+    ExperienceBuffer *buffer,
+    MLPCache *cache
 );
 
 float mean_return(ExperienceBuffer *buffer);

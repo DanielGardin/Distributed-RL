@@ -35,41 +35,47 @@ void policy_rollout(
     Env *env,
     const Policy *policy,
     int n_steps,
-    ExperienceBuffer *buffer
+    int n_episodes,
+    ExperienceBuffer *buffer,
+    MLPCache *cache
 ) {
-    float *cur_obs = buffer->observations;
-    float *next_obs;
     float *last_obs_buffer = malloc(env->obs_size * sizeof(float));
+    float *logits = malloc(policy->mlp->output_size * sizeof(float));
     
+    buffer->size = 0;
+    float *cur_obs = buffer->observations;
     float *cur_act = buffer->actions;
     float *cur_rew = buffer->rewards;
     bool *cur_done = buffer->dones;
-
-    int max_steps = n_steps > buffer->capacity ? buffer->capacity : n_steps;
+    float *next_obs;
     
-    env_reset(env, cur_obs);
-    
-    int step_count = 0;
-    float cum_reward = 0.0f;
-    bool done = false;
-    for (; step_count < max_steps && !done; step_count++) {
-        policy_sample_action(policy, cur_obs, 1, cur_act);
-        
-        next_obs = (step_count + 1 < n_steps)
-        ? cur_obs + env->obs_size
-        : last_obs_buffer;
-        
-        env_step(env, cur_act, next_obs, cur_rew, &done);
-        cum_reward += *cur_rew;
-        *cur_done = done;
+    int step_count;
+    for (int i=0; i < n_episodes; i++) {
+        bool done = false;
+        env_reset(env, cur_obs);
 
-        cur_obs = next_obs;
-        cur_act += env->act_size;
-        cur_rew += 1;
-        cur_done += 1;
-    };
+        for (step_count=0; !done; step_count++) {
+            mlp_forward(policy->mlp, cur_obs, 1, logits, cache);
+            policy_sample_action_from_logits(policy, logits, 1, cur_act);
+        
+            next_obs = (buffer->size+1 < buffer->capacity)
+                       ? cur_obs + env->obs_size
+                       : last_obs_buffer;
 
-    buffer->size = step_count;
+            env_step(env, cur_act, next_obs, cur_rew, &done);
+            done = done || step_count+1>=n_steps;
+
+            *cur_done = done;
+            buffer->size++;
+
+            cur_obs = next_obs;
+            cur_act += env->act_size;
+            cur_rew += 1;
+            cur_done += 1;
+        };
+    }
+
+    free(logits);
     free(last_obs_buffer);
 }
 
